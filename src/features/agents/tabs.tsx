@@ -1,7 +1,8 @@
 // An agent's sections, wherever they are shown (its Build view and its
 // profile panel): the type's tabs, settings, and Memory.
 // Memory is relay-backed for both local and hosted agents. Agents classified
-// as `elsewhere` expose no sections in these views.
+// as `elsewhere` expose only a read-only Activity tab, when the host supplies
+// one, and nothing else.
 import { useId, useState, type ReactNode } from "react";
 import {
   MemoryPanel,
@@ -49,6 +50,7 @@ export function agentSections({
   communities,
   settingsSection,
   settingsContent,
+  elsewhereActivity,
 }: {
   agents: Agents;
   agent: Agent;
@@ -70,8 +72,20 @@ export function agentSections({
   memories: AgentMemories | undefined;
   memoryLinks?: MemoryLinks | undefined;
   communities?: CommunityReader | undefined;
+  /** The owner's read-only view of the turns an `elsewhere` agent publishes
+   * over the relay; its only section. */
+  elsewhereActivity?: (() => ReactNode) | undefined;
 }): readonly AgentSection[] {
-  if (agent.place === "elsewhere") return [];
+  if (agent.place === "elsewhere")
+    return elsewhereActivity
+      ? [
+          {
+            value: "agent:activity",
+            label: "Activity",
+            render: elsewhereActivity,
+          },
+        ]
+      : [];
   const historyContent =
     settingsContent === undefined &&
     agent.place === "here" &&

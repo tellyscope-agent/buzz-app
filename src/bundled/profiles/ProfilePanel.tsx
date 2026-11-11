@@ -84,6 +84,7 @@ import { agentSections } from "../../features/agents/tabs";
 import type { ConversationExtensions } from "../../features/conversation/contracts";
 import { useAgentSettingsHost } from "../agents/AgentSettingsHost";
 import { conversationOpener } from "../agents/routes";
+import { ActivityPanel } from "../builderlab/adapter-type/Activity";
 import { buzzLinkTarget } from "../../features/navigation/buzz-links";
 import type { NavigationScope } from "../../features/navigation/targets";
 import { avatarMedia } from "../../shared/avatar-source";
@@ -426,6 +427,12 @@ function ProfileDetails({
     type: plugin?.type,
     types: agentTypes,
   });
+  // The owner reads an agent on another host through what it publishes over
+  // the relay; that agent's settings stay where it runs.
+  const elsewhere =
+    settings.agent?.place === "elsewhere" && settings.agent.owner === viewer
+      ? settings.agent
+      : undefined;
   const sections =
     settings.agent && agents
       ? agentSections({
@@ -443,6 +450,18 @@ function ProfileDetails({
           initialTranscript,
           close,
           ...(openConversation && { openConversation }),
+          ...(elsewhere && {
+            elsewhereActivity: () => (
+              <ActivityPanel
+                agent={elsewhere}
+                activity={session.agentActivity}
+                conversation={openedFrom(session, context)}
+                initialTranscript={initialTranscript}
+                openConversation={openConversation}
+                names={session.names}
+              />
+            ),
+          }),
           ...(settings.settingsHost
             ? { settingsHost: settings.settingsHost }
             : {}),

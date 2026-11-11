@@ -1,21 +1,11 @@
 name: Unsigned Mac build
 
-# A manual, unsigned Apple Silicon build of any branch for trying it out before
-# it merges. It is the `just desktop-bundle` debug bundle: the development
-# identifier and debug keychain services keep its app data and credentials
-# apart from an installed Buzz. No secrets, no signing, no updater.
+# A manual, unsigned Apple Silicon build of this repository's main (or the
+# branch the run is started from). It is the `just desktop-bundle` debug
+# bundle: the development identifier and debug keychain services keep its app
+# data and credentials apart from an installed Buzz. No secrets, no signing, no updater.
 on:
   workflow_dispatch:
-    inputs:
-      repository:
-        description: Repository to build (owner/name)
-        type: string
-        default: ""
-      ref:
-        description: Branch, tag or commit to build
-        type: string
-        required: true
-        default: main
 
 permissions:
   contents: read
@@ -34,8 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ inputs.repository || github.repository }}
-          ref: ${{ inputs.ref }}
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Build debug app bundle
@@ -43,7 +31,7 @@ jobs:
       - name: Archive app
         id: archive
         env:
-          SOURCE_REF: ${{ inputs.ref }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           app=target/debug/bundle/macos/Buzz.app
           test -d "$app" || { echo "::error::No app bundle at $app"; exit 1; }
@@ -54,7 +42,7 @@ jobs:
           ditto -c -k --keepParent "$app" "$RUNNER_TEMP/$name.zip"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "path=$RUNNER_TEMP/$name.zip" >> "$GITHUB_OUTPUT"
-          echo "Built \`$SOURCE_REF\` at $(git rev-parse HEAD) as $name" >> "$GITHUB_STEP_SUMMARY"
+          echo "Built \`$REF_NAME\` at $GITHUB_SHA as $name" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.archive.outputs.name }}

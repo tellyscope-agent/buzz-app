@@ -1,0 +1,30 @@
+name: Sync upstream
+
+# Brings this fork's main up to date with the repository it was forked from,
+# once a day and on demand. merge-upstream fast-forwards, or merges when the
+# fork has its own commits; a conflict (409) fails the run for a manual merge.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Merge upstream main
+    if: github.repository != 'block/buzz-app'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Merge upstream into main
+        env:
+          # GITHUB_TOKEN can never write .github/workflows/, so a day on which
+          # upstream changed a workflow needs a token with Workflows write.
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          result=$(gh api -X POST "repos/$REPOSITORY/merge-upstream" -f branch=main)
+          echo "$result"
+          echo "$result" | jq -r '"Synced main: \(.merge_type) from \(.base_branch) — \(.message)"' >> "$GITHUB_STEP_SUMMARY"

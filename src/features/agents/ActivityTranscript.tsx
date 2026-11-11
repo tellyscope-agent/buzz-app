@@ -202,7 +202,7 @@ export function ActivityTranscript({
   /** Only aggregate feeds need per-turn conversation navigation. */
   openConversation?: AgentViewProps["openConversation"];
   agentPicture?: string | undefined;
-  agentKey?: string;
+  agentKey?: string | undefined;
   community?: string | undefined;
 }) {
   const timeline = useFollowLatest(transcript, follow);

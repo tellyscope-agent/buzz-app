@@ -80,7 +80,7 @@ import type {
   TranscriptRequest,
 } from "../../features/agents/service";
 import type { CommunityReader } from "../../features/communities/service";
-import { agentSections } from "../../features/agents/tabs";
+import { type AgentSection, agentSections } from "../../features/agents/tabs";
 import type { ConversationExtensions } from "../../features/conversation/contracts";
 import { useAgentSettingsHost } from "../agents/AgentSettingsHost";
 import { conversationOpener } from "../agents/routes";
@@ -433,7 +433,7 @@ function ProfileDetails({
     settings.agent?.place === "elsewhere" && settings.agent.owner === viewer
       ? settings.agent
       : undefined;
-  const sections =
+  const registered =
     settings.agent && agents
       ? agentSections({
           agents,
@@ -467,12 +467,6 @@ function ProfileDetails({
             : {}),
         })
       : [];
-  // Opened for activity, an agent shows its type's Activity tab (its
-  // sessions), or its first tab when its type has none.
-  const typeActivity = sections.find((item) => item.value === "agent:activity");
-  const requestedTab =
-    tab === "activity" ? ((typeActivity ?? sections[0])?.value ?? "info") : tab;
-  const section = sections.find((item) => item.value === requestedTab);
   const tabHost = usePanelTabHost();
   const tabbed = !!tabHost;
   const region = useRef<HTMLElement>(null);
@@ -518,9 +512,41 @@ function ProfileDetails({
     attempt,
   );
   const verifiedOwner = ownership.owner;
+  const community = panelCommunity(scope, viewer);
+  // An agent the viewer owns but runs on another host has no record on this
+  // device; its owner still reads what it publishes over the relay.
+  const sections: readonly AgentSection[] =
+    !settings.agent && knownAgent && !!viewer && verifiedOwner === viewer
+      ? [
+          {
+            value: "agent:activity",
+            label: "Activity",
+            render: () => (
+              <ActivityPanel
+                agent={{
+                  pubkey,
+                  name: profile?.name ?? "Unknown agent",
+                  picture: profile?.picture,
+                  relay: community?.communityOrigin,
+                }}
+                activity={session.agentActivity}
+                conversation={openedFrom(session, context)}
+                initialTranscript={initialTranscript}
+                openConversation={openConversation}
+                names={session.names}
+              />
+            ),
+          },
+        ]
+      : registered;
+  // Opened for activity, an agent shows its type's Activity tab (its
+  // sessions), or its first tab when its type has none.
+  const typeActivity = sections.find((item) => item.value === "agent:activity");
+  const requestedTab =
+    tab === "activity" ? ((typeActivity ?? sections[0])?.value ?? "info") : tab;
+  const section = sections.find((item) => item.value === requestedTab);
   const selectedTab =
     requestedTab.startsWith("agent:") && !section ? "info" : requestedTab;
-  const community = panelCommunity(scope, viewer);
   const communityOrigin = community?.communityOrigin;
   const npub = profileTarget(pubkey)?.slice(6) ?? pubkey;
   const identityName = useChannelIdentityNames(session, context?.channelId);

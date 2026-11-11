@@ -29,6 +29,14 @@ import { useIdentityNames } from "../../../features/identity-names/react";
 
 export type AgentActivity = RelaySession["agentActivity"];
 
+/** What the feed reads of an agent; an agent with no record on this device
+ * has no membership key. */
+type ActivityAgent = Pick<Agent, "pubkey" | "name"> & {
+  key?: Agent["key"] | undefined;
+  picture?: string | undefined;
+  relay?: string | undefined;
+};
+
 const UNAVAILABLE = "Activity isn't available here.";
 
 export function createActivityTab(
@@ -71,7 +79,7 @@ export function ActivityPanel({
   openConversation,
   names,
 }: {
-  agent: Agent;
+  agent: ActivityAgent;
   /** Absent while the owner's session connects. */
   activity: AgentActivity | undefined;
   /** Where it was opened from; its turns show until widened to all. */
@@ -117,7 +125,7 @@ function ActivityFeed({
   openConversation,
   names,
 }: {
-  agent: Agent;
+  agent: ActivityAgent;
   activity: AgentActivity;
   conversation: AgentConversation | undefined;
   initialTranscript: AgentViewProps["initialTranscript"];

@@ -1,0 +1,63 @@
+name: Unsigned Mac build
+
+# A manual, unsigned Apple Silicon build of any branch for trying it out before
+# it merges. It is the `just desktop-bundle` debug bundle: the development
+# identifier and debug keychain services keep its app data and credentials
+# apart from an installed Buzz. No secrets, no signing, no updater.
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Repository to build (owner/name)
+        type: string
+        default: ""
+      ref:
+        description: Branch, tag or commit to build
+        type: string
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned app (aarch64)
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      CI: "true"
+      CARGO_TERM_COLOR: always
+      # Empty updater inputs build without the updater and its artifacts.
+      BUZZ_UPDATER_PUBLIC_KEY: ""
+      BUZZ_UPDATER_ENDPOINT: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Build debug app bundle
+        run: ./bin/just desktop-bundle
+      - name: Archive app
+        id: archive
+        env:
+          SOURCE_REF: ${{ inputs.ref }}
+        run: |
+          app=target/debug/bundle/macos/Buzz.app
+          test -d "$app" || { echo "::error::No app bundle at $app"; exit 1; }
+          test "$(lipo -archs "$app/Contents/MacOS/Buzz")" = arm64 || { echo "::error::Buzz is not arm64"; exit 1; }
+          name="buzz-unsigned-$(git rev-parse --short=12 HEAD)"
+          # ditto keeps the bundle's symlinks and executable bits; a plain
+          # artifact upload would drop them.
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/$name.zip"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "path=$RUNNER_TEMP/$name.zip" >> "$GITHUB_OUTPUT"
+          echo "Built \`$SOURCE_REF\` at $(git rev-parse HEAD) as $name" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: ${{ steps.archive.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7

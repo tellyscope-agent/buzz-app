@@ -1,9 +1,9 @@
 name: Unsigned Mac build
 
-# A manual, unsigned Apple Silicon build of this repository's main (or the
-# branch the run is started from). It is the `just desktop-bundle` debug
-# bundle: the development identifier and debug keychain services keep its app
-# data and credentials apart from an installed Buzz. No secrets, no signing, no updater.
+# A manual, unsigned Apple Silicon DMG of this repository's main (or the branch
+# the run is started from): an optimised release build with the development
+# identifier from `desktopOverlay`, so its app data stays apart from an installed
+# Buzz. No secrets, no signing, no updater.
 on:
   workflow_dispatch:
 
@@ -26,22 +26,30 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - name: Build debug app bundle
-        run: ./bin/just desktop-bundle
-      - name: Archive app
+      - name: Build release DMG
+        env:
+          # Keychain services pick their `.debug` names on cfg!(debug_assertions).
+          # Without this the release build shares the installed Buzz's sign-in,
+          # federated session and Claude key entries. It does not disable optimisation.
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "true"
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+        run: |
+          ./bin/node --input-type=module -e 'import { desktopOverlay } from "./scripts/desktop-config.mjs"; console.log(JSON.stringify(desktopOverlay(process.cwd())))' > "$RUNNER_TEMP/overlay.json"
+          ./bin/pnpm tauri build --ci --no-sign --bundles dmg --config "$RUNNER_TEMP/overlay.json" -- --locked
+      - name: Locate DMG
         id: archive
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
-          app=target/debug/bundle/macos/Buzz.app
-          test -d "$app" || { echo "::error::No app bundle at $app"; exit 1; }
+          shopt -s nullglob
+          dmgs=(target/release/bundle/dmg/*.dmg)
+          test "${#dmgs[@]}" -eq 1 || { echo "::error::Expected exactly one DMG"; exit 1; }
+          app=target/release/bundle/macos/Buzz.app
           test "$(lipo -archs "$app/Contents/MacOS/Buzz")" = arm64 || { echo "::error::Buzz is not arm64"; exit 1; }
           name="buzz-unsigned-$(git rev-parse --short=12 HEAD)"
-          # ditto keeps the bundle's symlinks and executable bits; a plain
-          # artifact upload would drop them.
-          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/$name.zip"
+          cp "${dmgs[0]}" "$RUNNER_TEMP/$name.dmg"
           echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "path=$RUNNER_TEMP/$name.zip" >> "$GITHUB_OUTPUT"
+          echo "path=$RUNNER_TEMP/$name.dmg" >> "$GITHUB_OUTPUT"
           echo "Built \`$REF_NAME\` at $GITHUB_SHA as $name" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
